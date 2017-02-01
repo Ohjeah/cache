@@ -5,8 +5,11 @@ from hypothesis.strategies import composite, integers, text, floats, tuples, lis
 
 from cache import *
 
-txt = text(alphabet='abcdefgh', min_size=1)
-anything = one_of(txt, floats(allow_nan=False), integers(), lists(integers()), dictionaries(txt, floats(allow_nan=True)))
+txt = text(alphabet='abcdefgh_', min_size=1)
+
+
+
+anything = one_of(txt, floats(allow_nan=False), integers(), lists(integers()), dictionaries(txt, floats(allow_nan=True)), dictionaries(txt, dictionaries(txt, txt)), )
 
 
 class C(CacheMixin):
@@ -56,3 +59,15 @@ def test_call(fgakc):
     assert r1 == r2
     assert r3 == r4
     assert r2 != r3
+
+
+def test_callable():
+    g = lambda: 42
+    f = lambda g: g()
+
+    cache = C()
+    cf = cache(f)
+    _ = cf(g)
+    _ = cf(g)
+    keys = cache.d.keys()
+    assert len(keys) == 1

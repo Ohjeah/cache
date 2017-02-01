@@ -41,19 +41,20 @@ class CacheMixin(object):
 
     __getitem__
     __setitem__
-    __contains__
     """
-    def get(self, f_, *args, **kwargs):
-        key = _hash(_make_key(f_, args, kwargs))
-        if key not in self:
-            res = f_(*args, **kwargs)
-            self[key] = res
-        return self[key]
 
-    def __call__(self, f_):
-        @functools.wraps(f_)
+    def key(self, f, args, kwargs):
+        return _hash(_make_key(f, args, kwargs))
+
+    def __call__(self, f, ignore=None):
+        @functools.wraps(f)
         def wrapped(*args, **kwargs):
-            return self.get(f_, *args, **kwargs)
+            key = self.key(f, args, kwargs)
+            if key not in self:
+                res = f(*args, **kwargs)
+                self[key] = res
+            return self[key]
+
         return wrapped
 
     def __contains__(self, key):
@@ -65,6 +66,8 @@ class CacheMixin(object):
 
 
 class FileCache(CacheMixin):
+
+
     def __init__(self, path):
         self.path = path
         self.fname = lambda key: os.path.join(self.path, str(hash(dill.dumps(key))) + ".dill")
