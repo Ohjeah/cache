@@ -5,7 +5,7 @@ from hypothesis.strategies import composite, integers, text, floats, tuples, lis
 
 from cache import *
 
-txt = text(alphabet='abcdefgh_', min_size=1)
+txt = text(alphabet='abcdefgh', min_size=1)
 anything = one_of(txt, floats(allow_nan=False), integers(), lists(integers()), dictionaries(txt, floats(allow_nan=True)))
 
 
