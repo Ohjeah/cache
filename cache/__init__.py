@@ -1,1 +1,1 @@
-from .cache import memoize
+from .cache import *
