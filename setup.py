@@ -14,10 +14,10 @@ required = [
 
 setup(
     name='cache',
-    version='0.0.0',
+    version='0.0.1',
     description='cacheing',
     long_description="",
-    author='Markus Quade',
+    author='Markus Quade, Thomas Isele',
     author_email='info@markusqua.de',
     url='https://github.com/ohjeah/cache',
     packages=['cache'],
