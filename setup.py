@@ -10,6 +10,7 @@ if sys.argv[-1] == "publish":
 
 required = [
     "dill",
+    "joblib",
 ]
 
 setup(

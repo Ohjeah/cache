@@ -1,40 +1,32 @@
 import os
 import functools
+import inspect
 
 import dill
+from joblib import hash
 
-
-def _hash(thing):
+def _hash(x):
     try:
-        hsh = hash(dill.dumps(thing))
+        if callable(x):
+            return _hash(x.__name__)
+        else:
+            return hash(dill.dumps(x))
     except dill.PicklingError:
         raise RuntimeError
-    return hsh
 
-# Recipe for _make_key taken from
-# http://code.activestate.com/recipes/578078-py26-and-py30-backport-of-python-33s-lru-cache/
-# and modified
+def deep_hash(x):
+    if isinstance(x, dict):
+        k = _hash([(k, deep_hash(v)) for v, k in sorted(x.items())])
+        return k
+    elif isinstance(x, (tuple, list, set)):
+        return _hash([deep_hash(xi) for xi in x])
+    else:
+        return _hash(x)
 
-def _make_key(f, args, kwds, typed=False, kwd_mark=(object(),),
-              fasttypes={int, str, frozenset, type(None)},
-              sorted=sorted, tuple=tuple, type=type, len=len):
-    """Make a cache key from the name of the function and
-    optionally typed positional and keyword arguments"""
-    key = [f.__name__]
-    key += args
-    if kwds:
-        sorted_items = sorted(kwds.items())
-        key += kwd_mark
-        for item in sorted_items:
-            key += item
-    if typed:
-        key += tuple(type(v) for v in args)
-        if kwds:
-            key += tuple(type(v) for k, v in sorted_items)
-    elif len(key) == 1 and type(key[0]) in fasttypes:
-        return key[0]
-    return key
-
+def _make_key(f, args, kwargs):
+    kwargs.update(dict(zip(inspect.getargspec(f).args, args)))
+    key = tuple(kwargs.get(k, None) for k in inspect.getargspec(f).args) + (f.__name__, )
+    return deep_hash(key)
 
 class CacheMixin(object):
     """To use this mixin, the following methods must be implemented:
@@ -44,17 +36,16 @@ class CacheMixin(object):
     """
 
     def key(self, f, args, kwargs):
-        return _hash(_make_key(f, args, kwargs))
+        return _make_key(f, args, kwargs)
 
-    def __call__(self, f, ignore=None):
+    def __call__(self, f):
         @functools.wraps(f)
         def wrapped(*args, **kwargs):
-            key = self.key(f, args, kwargs)
+            key = self.key(f, args, kwargs.copy())
             if key not in self:
                 res = f(*args, **kwargs)
                 self[key] = res
             return self[key]
-
         return wrapped
 
     def __contains__(self, key):

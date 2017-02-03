@@ -1,14 +1,15 @@
 import mock
 
+import numpy as np
+import delegator
+
+import pytest
 from hypothesis import given, example, settings
 from hypothesis.strategies import composite, integers, text, floats, tuples, lists, sampled_from, one_of, dictionaries
 
 from cache import *
 
 txt = text(alphabet='abcdefgh_', min_size=1)
-
-
-
 anything = one_of(txt, floats(allow_nan=False), integers(), lists(integers()), dictionaries(txt, floats(allow_nan=True)), dictionaries(txt, dictionaries(txt, txt)), )
 
 
@@ -60,9 +61,9 @@ def test_call(fgakc):
     assert r3 == r4
     assert r2 != r3
 
-
+@pytest.mark.skip
 def test_callable():
-    g = lambda: 42
+    g = np.random.random
     f = lambda g: g()
 
     cache = C()
@@ -71,3 +72,20 @@ def test_callable():
     _ = cf(g)
     keys = cache.d.keys()
     assert len(keys) == 1
+
+
+objs = [
+    "np.sin",
+    "(np.sin, np.cos)",
+    "[np.sin, np.cos]",
+    "{'sin': np.sin}",
+]
+
+@pytest.mark.parametrize("obj", objs)
+def test_callable_different_processes(obj):
+    cmd = "python -c 'import numpy as np; from cache import *; print(deep_hash({}))'".format(obj)
+
+    c = delegator.run(cmd)
+    d = delegator.run(cmd)
+
+    assert c.out == d.out
