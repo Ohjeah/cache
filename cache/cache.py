@@ -2,8 +2,10 @@ import os
 import functools
 import inspect
 
+import sqlitedict
 import dill
 from joblib import hash
+
 
 def _hash(x):
     try:
@@ -14,6 +16,7 @@ def _hash(x):
     except dill.PicklingError:
         raise RuntimeError
 
+
 def deep_hash(x):
     if isinstance(x, dict):
         k = _hash([(k, deep_hash(v)) for v, k in sorted(x.items())])
@@ -23,10 +26,12 @@ def deep_hash(x):
     else:
         return _hash(x)
 
+
 def _make_key(f, args, kwargs):
     kwargs.update(dict(zip(inspect.getargspec(f).args, args)))
     key = tuple(kwargs.get(k, None) for k in inspect.getargspec(f).args) + (f.__name__, )
     return deep_hash(key)
+
 
 class CacheMixin(object):
     """To use this mixin, the following methods must be implemented:
@@ -57,14 +62,12 @@ class CacheMixin(object):
 
 
 class FileCache(CacheMixin):
-
-
     def __init__(self, path):
         self.path = path
-        self.fname = lambda key: os.path.join(self.path, str(hash(dill.dumps(key))) + ".dill")
+        self.name = lambda key: os.path.join(self.path, str(hash(dill.dumps(key))) + ".dill")
 
     def __getitem__(self, key):
-        file_ = self.fname(key)
+        file_ = self.name(key)
         if not os.path.exists(file_):
             raise KeyError
         with open(file_, 'rb') as f:
@@ -72,7 +75,7 @@ class FileCache(CacheMixin):
         return result
 
     def __setitem__(self, key, value):
-        with open(self.fname(key), 'wb') as f:
+        with open(self.name(key), 'wb') as f:
             dill.dump(value, f)
 
 
@@ -83,3 +86,15 @@ class _Memoize(CacheMixin, dict):
 def memoize(f):
     m =_Memoize()(f)
     return m
+
+
+class DBCache(CacheMixin):
+    def __init__(self, fname, table):
+        self.name = "{}_{}.sqlite".format(fname, table)
+        self.dict = sqlitedict.SqliteDict(self.name, autocommit=True)
+
+    def __getitem__(self, key):
+        return self.dict[key]
+
+    def __setitem__(self, key, value):
+        self.dict[key] = value

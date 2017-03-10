@@ -1,4 +1,5 @@
 import mock
+import random
 
 import numpy as np
 import delegator
@@ -89,3 +90,23 @@ def test_callable_different_processes(obj):
     d = delegator.run(cmd)
 
     assert c.out == d.out
+
+
+caches = [
+            lambda: DBCache("tmp", "mytable"),
+            lambda: FileCache("/tmp")
+            ]
+
+@pytest.mark.parametrize("cache", caches)
+def test_Cache(cache):
+    c = cache()
+
+    f = lambda x: random.random()  
+    f = c(f)
+    x = f(10)
+    for i in range(100):
+        assert x == f(10)
+
+    delegator.run("rm {}".format(c.name))
+
+
