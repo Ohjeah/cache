@@ -11,11 +11,12 @@ if sys.argv[-1] == "publish":
 required = [
     "dill",
     "joblib",
+    "sqlitedict"
 ]
 
 setup(
-    name='cache',
-    version='0.0.1',
+    name='cache.py',
+    version='0.1.1',
     description='cacheing',
     long_description="",
     author='Markus Quade, Thomas Isele',
