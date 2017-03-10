@@ -16,7 +16,7 @@ required = [
 
 setup(
     name='cache.py',
-    version='0.1.1',
+    version='0.1.2',
     description='cacheing',
     long_description="",
     author='Markus Quade, Thomas Isele',

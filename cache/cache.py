@@ -89,19 +89,29 @@ def memoize(f):
 
 
 class DBCache(CacheMixin):
-    def __init__(self, fname, table):
+    def __init__(self, fname, table, buffer_size=5):
         self.name = "{}_{}.sqlite".format(fname, table)
-        with sqlitedict.SqliteDict(self.name, autocommit=True) as d:
-            self.keys = set(d.keys())
+        self.counter = 0
+        self.buffer_size = buffer_size
+        with sqlitedict.SqliteDict(self.name) as d:
+            self.d = {k:v for k,v in d.items()}
 
     def __getitem__(self, key):
-        with sqlitedict.SqliteDict(self.name, autocommit=True) as d:
-            return d[key]
+        return self.d[key]
 
     def __setitem__(self, key, value):
-        with sqlitedict.SqliteDict(self.name, autocommit=True) as d:
-            d[key] = value
-        self.keys.add(key)
+
+        self.d[key] = value
+        self.counter += 1
+        self.flush()
+
+    def flush(self):
+        if self.counter >= self.buffer_size:
+            with sqlitedict.SqliteDict(self.name) as d:
+                for key, value in self.d.items():
+                    d[key] = value
+                    d.commit()
+            self.counter = 0
 
     def __contains__(self, key):
-        return key in self.keys
+        return key in self.d

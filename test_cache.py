@@ -93,7 +93,7 @@ def test_callable_different_processes(obj):
 
 
 caches = [
-            lambda: DBCache("tmp", "mytable"),
+            lambda: DBCache("tmp", "mytable", buffer_size=1),
             lambda: FileCache("/tmp")
             ]
 
