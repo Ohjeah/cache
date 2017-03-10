@@ -1,6 +1,7 @@
 import os
 import functools
 import inspect
+import logging
 
 import sqlitedict
 import dill
@@ -89,10 +90,12 @@ def memoize(f):
 
 
 class DBCache(CacheMixin):
-    def __init__(self, fname, table, buffer_size=5):
+    def __init__(self, fname, table, buffer_size=5, silence=True):
         self.name = "{}_{}.sqlite".format(fname, table)
         self.counter = 0
         self.buffer_size = buffer_size
+        if silence:
+            logging.getLogger("sqlitedict").setLevel(logging.WARNING)
         with sqlitedict.SqliteDict(self.name) as d:
             self.d = {k:v for k,v in d.items()}
 
