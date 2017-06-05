@@ -101,12 +101,10 @@ caches = [
 def test_Cache(cache):
     c = cache()
 
-    f = lambda x: random.random()  
+    f = lambda x: random.random()
     f = c(f)
     x = f(10)
     for i in range(100):
         assert x == f(10)
 
-    delegator.run("rm {}".format(c.name))
-
-
+    delegator.run("rm {}".format(c.fname))

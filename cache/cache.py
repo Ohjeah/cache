@@ -65,10 +65,10 @@ class CacheMixin(object):
 class FileCache(CacheMixin):
     def __init__(self, path):
         self.path = path
-        self.name = lambda key: os.path.join(self.path, str(hash(dill.dumps(key))) + ".dill")
+        self.fname = lambda key: os.path.join(self.path, str(hash(dill.dumps(key))) + ".dill")
 
     def __getitem__(self, key):
-        file_ = self.name(key)
+        file_ = self.fname(key)
         if not os.path.exists(file_):
             raise KeyError
         with open(file_, 'rb') as f:
@@ -90,14 +90,20 @@ def memoize(f):
 
 
 class DBCache(CacheMixin):
-    def __init__(self, fname, table, buffer_size=5, silence=True):
-        self.name = "{}_{}.sqlite".format(fname, table)
+    def __init__(self, fname, tabname, buffer_size=5, silence=True):
+        self.fname = "{}.sqlite".format(fname)
+        self.tabname = tabname
         self.counter = 0
         self.buffer_size = buffer_size
+
         if silence:
             logging.getLogger("sqlitedict").setLevel(logging.WARNING)
-        with sqlitedict.SqliteDict(self.name) as d:
+        with self.db as d:
             self.d = {k:v for k,v in d.items()}
+
+    @property
+    def db(self):
+        return sqlitedict.SqliteDict(filename=self.fname, tablename=self.tabname)
 
     def __getitem__(self, key):
         return self.d[key]
@@ -110,7 +116,7 @@ class DBCache(CacheMixin):
 
     def flush(self):
         if self.counter >= self.buffer_size:
-            with sqlitedict.SqliteDict(self.name) as d:
+            with self.db as d:
                 for key, value in self.d.items():
                     d[key] = value
                     d.commit()
