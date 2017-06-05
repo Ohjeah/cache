@@ -76,7 +76,7 @@ class FileCache(CacheMixin):
         return result
 
     def __setitem__(self, key, value):
-        with open(self.name(key), 'wb') as f:
+        with open(self.fname(key), 'wb') as f:
             dill.dump(value, f)
 
 
