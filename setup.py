@@ -1,6 +1,5 @@
 import os
 import sys
-from os.path import dirname
 
 from setuptools import setup
 
@@ -16,7 +15,7 @@ required = [
 
 setup(
     name='cache.py',
-    version='0.1.2',
+    version='0.1.3',
     description='cacheing',
     long_description="",
     author='Markus Quade, Thomas Isele',

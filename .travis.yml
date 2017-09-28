@@ -5,6 +5,6 @@ python:
 #  - "3.7-dev"
 install:
   - pip install -r requirements.txt
-  - pip install pytest hypothesis delegator.py
+  - pip install pytest hypothesis delegator.py numpy
 script:
   - py.test

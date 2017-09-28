@@ -41,7 +41,8 @@ class CacheMixin(object):
     __setitem__
     """
 
-    def key(self, f, args, kwargs):
+    @staticmethod
+    def key(f, args, kwargs):
         return _make_key(f, args, kwargs)
 
     def __call__(self, f):
@@ -63,7 +64,7 @@ class CacheMixin(object):
 
 
 class FileCache(CacheMixin):
-    def __init__(self, path):
+    def __init__(self, path="./tmp"):
         self.path = path
         self.fname = lambda key: os.path.join(self.path, str(hash(dill.dumps(key))) + ".dill")
 
@@ -90,37 +91,44 @@ def memoize(f):
 
 
 class DBCache(CacheMixin):
-    def __init__(self, fname, tabname, buffer_size=5, silence=True):
-        self.fname = "{}.sqlite".format(fname)
+    def __init__(self, fname="dbcache", path="./tmp", tabname="mytable", buffer_size=5, silence=True):
+        self.path = "{}.sqlite".format(os.path.join(path, fname))
         self.tabname = tabname
         self.counter = 0
         self.buffer_size = buffer_size
 
         if silence:
             logging.getLogger("sqlitedict").setLevel(logging.WARNING)
-        with self.db as d:
-            self.d = {k:v for k,v in d.items()}
+
+        with self.db as db:
+            self.d = {k:v for k,v in db.items()}
 
     @property
     def db(self):
-        return sqlitedict.SqliteDict(filename=self.fname, tablename=self.tabname)
+        return sqlitedict.SqliteDict(filename=self.path, tablename=self.tabname)
 
     def __getitem__(self, key):
         return self.d[key]
 
     def __setitem__(self, key, value):
-
         self.d[key] = value
         self.counter += 1
-        self.flush()
+        if self.counter >= self.buffer_size:
+            self.flush()
 
     def flush(self):
-        if self.counter >= self.buffer_size:
-            with self.db as d:
-                for key, value in self.d.items():
-                    d[key] = value
-                    d.commit()
-            self.counter = 0
+        with self.db as db:
+            for key, value in self.d.items():
+                if key not in db:
+                    db[key] = value
+                db.commit()
+        self.counter = 0
 
     def __contains__(self, key):
         return key in self.d
+
+    def __del__(self):
+        try:
+            self.flush()
+        except RuntimeError:
+            pass # dir not available anymore

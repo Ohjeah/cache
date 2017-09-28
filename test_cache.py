@@ -1,14 +1,19 @@
 import mock
 import random
+import contextlib
+import shutil
+import tempfile
 
 import numpy as np
 import delegator
+import sqlitedict
 
 import pytest
 from hypothesis import given, example, settings
 from hypothesis.strategies import composite, integers, text, floats, tuples, lists, sampled_from, one_of, dictionaries
 
 from cache import *
+
 
 txt = text(alphabet='abcdefgh_', min_size=1)
 anything = one_of(txt, floats(allow_nan=False), integers(), lists(integers()), dictionaries(txt, floats(allow_nan=True)), dictionaries(txt, dictionaries(txt, txt)), )
@@ -92,19 +97,56 @@ def test_callable_different_processes(obj):
     assert c.out == d.out
 
 
-caches = [
-            lambda: DBCache("tmp", "mytable", buffer_size=1),
-            lambda: FileCache("/tmp")
-            ]
+@contextlib.contextmanager
+def cd(newdir, cleanup=lambda: True):
+    prevdir = os.getcwd()
+    os.chdir(os.path.expanduser(newdir))
+    try:
+        yield
+    finally:
+        os.chdir(prevdir)
+        cleanup()
+
+@contextlib.contextmanager
+def tempdir():
+    dirpath = tempfile.mkdtemp()
+    def cleanup():
+        shutil.rmtree(dirpath)
+    with cd(dirpath, cleanup):
+        yield dirpath
+
+
+caches = [DBCache, FileCache]
 
 @pytest.mark.parametrize("cache", caches)
 def test_Cache(cache):
-    c = cache()
 
-    f = lambda x: random.random()
-    f = c(f)
-    x = f(10)
-    for i in range(100):
-        assert x == f(10)
+    with tempdir() as temp_dir:
 
-    delegator.run("rm {}".format(c.fname))
+        c = cache(path=temp_dir)
+        f = lambda x: random.random()
+        f = c(f)
+        x = f(10)
+        for i in range(100):
+            assert x == f(10)
+
+
+def test_DBCache_flush():
+    with tempdir() as temp_dir:
+        c = DBCache(path=temp_dir)
+        path = c.path
+        tabname = c.tabname
+        f = c(lambda x: x**2)
+        f(1)
+        # need to use the original address for the key
+        key = c.key(f.__closure__[0].cell_contents, (1,), {})
+        del f
+        del c
+        try:
+            c
+        except NameError:
+            pass
+        else:
+            assert False
+        db = sqlitedict.SqliteDict(filename=path, tablename=tabname)
+        assert db[key] == 1
