@@ -2,6 +2,7 @@ import os
 import functools
 import inspect
 import logging
+import collections
 
 import sqlitedict
 import dill
@@ -52,6 +53,7 @@ class CacheMixin(object):
             if key not in self or getattr(self, "overwrite", False):
                 res = f(*args, **kwargs)
                 self[key] = res
+                return res
             return self[key]
         return wrapped
 
@@ -79,36 +81,38 @@ class DBCache(CacheMixin):
         self.path = "{}.sqlite".format(os.path.join(path, fname))
         self.tabname = tabname
         self.overwrite = overwrite
-        self.buffer = {}
+        self._buffer = {}
         self.buffer_size = buffer_size
 
         if silence:
             logging.getLogger("sqlitedict").setLevel(logging.WARNING)
 
-        with self.db as db:
-            self.d = {k:v for k,v in db.items()}
+        if not self.overwrite:
+            with self.db as db:
+                self._d = {k:v for k,v in db.items()}
+        else:
+            self._d = {}
+        self._view = collections.ChainMap(self._buffer, self._d)
 
     @property
     def db(self):
         return sqlitedict.SqliteDict(filename=self.path, tablename=self.tabname)
 
     def __getitem__(self, key):
-        return self.d[key]
+        return self._view[key]
 
     def __setitem__(self, key, value):
-        self.d[key] = value
-        self.buffer[key] = value
-        if len(self.buffer) >= self.buffer_size:
+        self._buffer[key] = value
+        if len(self._buffer) >= self.buffer_size:
             self.flush()
 
     def flush(self):
         """Save current buffer to database"""
         with self.db as db:
-            for key, value in self.buffer.items():
-                #if key not in db or self.overwrite:
-                db[key] = value
-                db.commit()
-        self.buffer = {}
+            db.update(self._buffer)
+            db.commit()
+        self._d.update(self._buffer)
+        self._buffer.clear()
 
     def __del__(self):
         """Flush current buffer before carbage collection"""
