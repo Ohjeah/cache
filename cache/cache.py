@@ -75,7 +75,10 @@ def memoize(f):
 
 
 class DBCache(CacheMixin):
-    """A dictionary based cache that periodically syncs with a sqlite data base."""
+    """A dictionary based cache that periodically syncs with a sqlite data base.
+
+    Do not use __setitem__ on your own.
+    """
     def __init__(self, fname="dbcache", path="./tmp", tabname="mytable", buffer_size=5,
                  silence=True, overwrite=False):
         self.path = "{}.sqlite".format(os.path.join(path, fname))
@@ -96,7 +99,8 @@ class DBCache(CacheMixin):
 
     @property
     def db(self):
-        return sqlitedict.SqliteDict(filename=self.path, tablename=self.tabname)
+        return sqlitedict.SqliteDict(filename=self.path, tablename=self.tabname,
+                                     encode=dill.dumps, decode=dill.loads)
 
     def __getitem__(self, key):
         return self._view[key]

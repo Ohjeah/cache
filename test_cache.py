@@ -159,6 +159,6 @@ class Test_DBCache():
 
             f()
             key = c.key(f.__closure__[0].cell_contents, (), {})
-            assert c[key] == 1
+            assert c.db[key] == 1
             f()
-            assert c[key] == 2
+            assert c.db[key] == 2
