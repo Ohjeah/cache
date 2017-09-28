@@ -67,6 +67,7 @@ def test_call(fgakc):
     assert r3 == r4
     assert r2 != r3
 
+
 @pytest.mark.skip
 def test_callable():
     g = np.random.random
@@ -116,37 +117,48 @@ def tempdir():
         yield dirpath
 
 
-caches = [DBCache, FileCache]
-
-@pytest.mark.parametrize("cache", caches)
-def test_Cache(cache):
-
-    with tempdir() as temp_dir:
-
-        c = cache(path=temp_dir)
-        f = lambda x: random.random()
-        f = c(f)
-        x = f(10)
-        for i in range(100):
-            assert x == f(10)
+class Test_DBCache():
+    def test_no_pure(self):
+        with tempdir() as temp_dir:
+            c = DBCache(path=temp_dir)
+            f = lambda x: random.random()
+            f = c(f)
+            x = f(10)
+            for i in range(100):
+                assert x == f(10)
 
 
-def test_DBCache_flush():
-    with tempdir() as temp_dir:
-        c = DBCache(path=temp_dir)
-        path = c.path
-        tabname = c.tabname
-        f = c(lambda x: x**2)
-        f(1)
-        # need to use the original address for the key
-        key = c.key(f.__closure__[0].cell_contents, (1,), {})
-        del f
-        del c
-        try:
-            c
-        except NameError:
-            pass
-        else:
-            assert False
-        db = sqlitedict.SqliteDict(filename=path, tablename=tabname)
-        assert db[key] == 1
+    def test_flush(self):
+        with tempdir() as temp_dir:
+            c = DBCache(path=temp_dir)
+            path = c.path
+            tabname = c.tabname
+            f = c(lambda x: x**2)
+            f(1)
+            # need to use the original address for the key
+            key = c.key(f.__closure__[0].cell_contents, (1,), {})
+            del f
+            del c
+            try:
+                c
+            except NameError:
+                pass
+            else:
+                assert False
+            db = sqlitedict.SqliteDict(filename=path, tablename=tabname)
+            assert db[key] == 1
+
+    def test_overwrite(self):
+        with tempdir() as temp_dir:
+            c = DBCache(path=temp_dir, overwrite=True, buffer_size=1)
+
+            a = iter([1, 2])
+            @c
+            def f():
+                return next(a)
+
+            f()
+            key = c.key(f.__closure__[0].cell_contents, (), {})
+            assert c[key] == 1
+            f()
+            assert c[key] == 2

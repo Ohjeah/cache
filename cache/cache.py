@@ -49,7 +49,7 @@ class CacheMixin(object):
         @functools.wraps(f)
         def wrapped(*args, **kwargs):
             key = self.key(f, args, kwargs.copy())
-            if key not in self:
+            if key not in self or getattr(self, "overwrite", False):
                 res = f(*args, **kwargs)
                 self[key] = res
             return self[key]
@@ -63,24 +63,6 @@ class CacheMixin(object):
             return False
 
 
-class FileCache(CacheMixin):
-    def __init__(self, path="./tmp"):
-        self.path = path
-        self.fname = lambda key: os.path.join(self.path, str(hash(dill.dumps(key))) + ".dill")
-
-    def __getitem__(self, key):
-        file_ = self.fname(key)
-        if not os.path.exists(file_):
-            raise KeyError
-        with open(file_, 'rb') as f:
-            result = dill.load(f)
-        return result
-
-    def __setitem__(self, key, value):
-        with open(self.fname(key), 'wb') as f:
-            dill.dump(value, f)
-
-
 class _Memoize(CacheMixin, dict):
     pass
 
@@ -91,10 +73,13 @@ def memoize(f):
 
 
 class DBCache(CacheMixin):
-    def __init__(self, fname="dbcache", path="./tmp", tabname="mytable", buffer_size=5, silence=True):
+    """A dictionary based cache that periodically syncs with a sqlite data base."""
+    def __init__(self, fname="dbcache", path="./tmp", tabname="mytable", buffer_size=5,
+                 silence=True, overwrite=False):
         self.path = "{}.sqlite".format(os.path.join(path, fname))
         self.tabname = tabname
-        self.counter = 0
+        self.overwrite = overwrite
+        self.buffer = {}
         self.buffer_size = buffer_size
 
         if silence:
@@ -112,23 +97,22 @@ class DBCache(CacheMixin):
 
     def __setitem__(self, key, value):
         self.d[key] = value
-        self.counter += 1
-        if self.counter >= self.buffer_size:
+        self.buffer[key] = value
+        if len(self.buffer) >= self.buffer_size:
             self.flush()
 
     def flush(self):
+        """Save current buffer to database"""
         with self.db as db:
-            for key, value in self.d.items():
-                if key not in db:
-                    db[key] = value
+            for key, value in self.buffer.items():
+                #if key not in db or self.overwrite:
+                db[key] = value
                 db.commit()
-        self.counter = 0
-
-    def __contains__(self, key):
-        return key in self.d
+        self.buffer = {}
 
     def __del__(self):
+        """Flush current buffer before carbage collection"""
         try:
             self.flush()
         except RuntimeError:
-            pass # dir not available anymore
+            pass # DB not available anymore
